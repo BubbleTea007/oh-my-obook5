@@ -1,0 +1,6 @@
+[submodule "workshop/fonts/LxgwWenKai"]
+	path = workshop/fonts/LxgwWenKai
+	url = https://github.com/lxgw/LxgwWenKai.git
+[submodule "workshop/third_party/lvgl"]
+	path = workshop/third_party/lvgl
+	url = https://github.com/lvgl/lvgl.git
