@@ -223,3 +223,9 @@ file workshop/app/debug/bin/debug
 ```text
 ELF 32-bit LSB executable, MIPS, MIPS32 rel2, statically linked
 ```
+
+## 声明
+
+本项目仅供学习、研究和个人测试使用，请勿用于商业用途或任何违法用途。
+
+使用本项目造成的任何后果由使用者自行承担；请遵守设备厂商的服务条款和当地法律法规。
