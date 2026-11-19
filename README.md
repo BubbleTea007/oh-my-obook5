@@ -1,7 +1,7 @@
 # workshop
 
 <p align="center">
-  <img src="assets/workshop.png" width="88" alt="workshop icon">
+  <img src="workshop/assets/workshop.png" width="88" alt="workshop icon">
 </p>
 
 <p align="center">为 OBOOK5 墨水屏打造的轻量应用启动器</p>
@@ -13,7 +13,7 @@
 </p>
 
 <p align="center">
-  <img src="assets/screenshot.png" alt="workshop 首页" width="360">
+  <img src="workshop/assets/screenshot.png" alt="workshop 首页" width="360">
 </p>
 
 ## 简介
