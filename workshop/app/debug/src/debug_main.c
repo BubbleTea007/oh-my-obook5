@@ -29,6 +29,7 @@
 #define DEBUG_LOG "/user/workshop/app/debug/logs/debug.log"
 #define FONT_LIGHT "A:/user/workshop/fonts/LXGWWenKai-Regular.ttf"
 #define FONT_BOLD "A:/user/workshop/fonts/LXGWWenKai-Medium.ttf"
+#define DEBUGD_PID "/tmp/workshop_debug.pid"
 
 static int s_fb_fd = -1;
 static int s_touch_fd = -1;
@@ -81,6 +82,26 @@ typedef struct {
     int wifi_connected;
     int wifi_rssi;
 } debug_info_t;
+
+static int daemon_pid(void)
+{
+    FILE *f = fopen(DEBUGD_PID, "r");
+    if (!f) return 0;
+    int pid = 0;
+    if (fscanf(f, "%d", &pid) != 1) pid = 0;
+    fclose(f);
+    if (pid <= 0) return 0;
+    return kill(pid, 0) == 0 ? pid : 0;
+}
+
+static int daemon_running(void) { return daemon_pid() > 0; }
+
+static void daemon_stop(void)
+{
+    int pid = daemon_pid();
+    if (pid > 0) kill(pid, SIGTERM);
+    unlink(DEBUGD_PID);
+}
 
 static uint32_t ticks_ms(void)
 {
@@ -214,9 +235,10 @@ static void fill_info(debug_info_t *info)
     get_wlan_ip(info->ip, sizeof(info->ip));
     get_gateway(info->gateway, sizeof(info->gateway));
     get_mac(info->mac, sizeof(info->mac));
-    info->http_port = s_http_fd >= 0 ? s_http_port : 0;
-    info->shell_port = s_shell_fd >= 0 ? s_shell_port : 0;
-    info->running = s_http_fd >= 0 || s_shell_fd >= 0;
+    const int background_pid = daemon_pid();
+    info->http_port = s_http_fd >= 0 ? s_http_port : (background_pid ? HTTP_PORT : 0);
+    info->shell_port = s_shell_fd >= 0 ? s_shell_port : (background_pid ? SHELL_PORT : 0);
+    info->running = s_http_fd >= 0 || s_shell_fd >= 0 || background_pid > 0;
     info->wifi_connected = wifi_connected();
     info->wifi_rssi = wifi_rssi();
 }
@@ -412,6 +434,7 @@ static void server_poll(void)
 
 static int server_start(void)
 {
+    if (daemon_running()) return 0;
     if (s_http_fd >= 0 && s_shell_fd >= 0) return 0;
 
     if (s_http_fd < 0) {
@@ -716,6 +739,8 @@ static void toggle_cb(lv_event_t *e)
     (void)e;
     if (s_http_fd >= 0 || s_shell_fd >= 0) {
         server_stop();
+    } else if (daemon_running()) {
+        daemon_stop();
     } else {
         server_start();
     }

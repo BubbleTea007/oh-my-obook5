@@ -45,4 +45,12 @@ fi
 
 [ -n "$QPE" ] && kill -STOP $QPE
 
+# Keep the debug shell available while other workshop apps are in the
+# foreground.  debugd binds 8098/8099 and daemonizes; if the Debug app still
+# owns the ports it waits until that app exits.
+DEBUGD=/user/workshop/app/debug/bin/debugd
+if [ -x "$DEBUGD" ]; then
+    "$DEBUGD" --wait >/dev/null 2>&1 &
+fi
+
 /user/workshop/bin/workshop
