@@ -196,8 +196,10 @@ static lv_obj_t *make_app_icon(lv_obj_t *parent, const workshop_app_t *app,
     lv_obj_set_size(img, size, size);
     if (header.w > 0)
         lv_image_set_scale(img, (uint32_t)(256 * size / header.w));
-    lv_obj_set_style_image_recolor(img, C_INK, 0);
-    lv_obj_set_style_image_recolor_opa(img, LV_OPA_COVER, 0);
+    // App icons must be RGBA with a transparent background.  Recoloring an
+    // opaque RGB icon with full opacity would turn its white background into
+    // a solid black square.  Press feedback still recolors the icon through
+    // set_tile_inverted(), which is correct for RGBA glyphs.
     return img;
 }
 

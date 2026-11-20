@@ -2,12 +2,15 @@
 
 #include "lvgl.h"
 
+#include <ctype.h>
+#include <dirent.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <linux/fb.h>
 #include <linux/input.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <signal.h>
 #include <string.h>
 #include <sys/ioctl.h>
 #include <sys/mman.h>
@@ -53,6 +56,7 @@ static workshop_platform_info_t s_info = {480, 800, 1};
 static int s_quit;
 static int s_touch_down;
 static int s_last_touch_down;
+static uint32_t s_ignore_touch_until;
 static int s_raw_x;
 static int s_raw_y;
 
@@ -113,6 +117,23 @@ static void input_read_cb(lv_indev_t *indev, lv_indev_data_t *data)
 {
     (void)indev;
     struct input_event ev;
+
+    /*
+     * A foreground app's last press/release is still queued when control
+     * returns here.  Without a short guard, that same release lands on the
+     * launcher tile under the finger and relaunches the app immediately,
+     * which looks like Workshop and the app fighting each other.
+     */
+    if (platform_ticks_ms() < s_ignore_touch_until) {
+        while (read(s_touch_fd, &ev, sizeof(ev)) == (ssize_t)sizeof(ev)) {
+        }
+        s_touch_down = 0;
+        s_last_touch_down = 0;
+        data->point.x = s_raw_x > 0 ? s_raw_x : 0;
+        data->point.y = s_raw_y > 0 ? s_raw_y : 0;
+        data->state = LV_INDEV_STATE_RELEASED;
+        return;
+    }
     while (read(s_touch_fd, &ev, sizeof(ev)) == (ssize_t)sizeof(ev)) {
         if (ev.type == EV_ABS) {
             if (ev.code == ABS_MT_POSITION_X || ev.code == ABS_X) s_raw_x = ev.value;
@@ -489,6 +510,40 @@ uint32_t platform_ticks_ms(void)
     return (uint32_t)(ts.tv_sec * 1000ULL + ts.tv_nsec / 1000000ULL);
 }
 
+static void signal_named_processes(const char *name, int sig)
+{
+    DIR *proc = opendir("/proc");
+    if (!proc) return;
+    struct dirent *entry;
+    while ((entry = readdir(proc)) != NULL) {
+        if (!isdigit((unsigned char)entry->d_name[0])) continue;
+        char path[64];
+        snprintf(path, sizeof(path), "/proc/%s/comm", entry->d_name);
+        FILE *f = fopen(path, "r");
+        if (!f) continue;
+        char comm[64] = {0};
+        if (fgets(comm, sizeof(comm), f)) {
+            char *nl = strchr(comm, '\n');
+            if (nl) *nl = '\0';
+        }
+        fclose(f);
+        if (strcmp(comm, name) == 0) {
+            pid_t pid = (pid_t)atoi(entry->d_name);
+            fprintf(stderr, "workshop: signaling stale %s pid=%d sig=%d\n",
+                    name, pid, sig);
+            kill(pid, sig);
+        }
+    }
+    closedir(proc);
+}
+
+static void kill_stale_app(const char *name)
+{
+    signal_named_processes(name, SIGTERM);
+    usleep(300000);
+    signal_named_processes(name, SIGKILL);
+}
+
 int platform_launch(const char *app_dir, const char *exec_path,
                     char *err, size_t errlen)
 {
@@ -510,8 +565,11 @@ int platform_launch(const char *app_dir, const char *exec_path,
     mkdir(log_dir, 0755);
     snprintf(log_path, sizeof(log_path), "%s/%s.log", log_dir, base);
 
+    kill_stale_app(base);
+
     if (s_touch_fd >= 0) ioctl(s_touch_fd, EVIOCGRAB, 0);
 
+    fprintf(stderr, "workshop: launch %s\n", path);
     pid_t pid = fork();
     if (pid == 0) {
         if (chdir(app_dir) != 0) _exit(126);
@@ -536,7 +594,19 @@ int platform_launch(const char *app_dir, const char *exec_path,
     while (waitpid(pid, &status, 0) < 0 && errno == EINTR) {
     }
 
-    if (s_touch_fd >= 0) ioctl(s_touch_fd, EVIOCGRAB, 1);
+    if (s_touch_fd >= 0) {
+        ioctl(s_touch_fd, EVIOCGRAB, 1);
+        struct input_event ev;
+        while (read(s_touch_fd, &ev, sizeof(ev)) == (ssize_t)sizeof(ev)) {
+        }
+    }
+    s_touch_down = 0;
+    s_last_touch_down = 0;
+    s_ignore_touch_until = platform_ticks_ms() + 600;
+
+    fprintf(stderr, "workshop: %s exited exited=%d code=%d signal=%d\n",
+            base, WIFEXITED(status), WIFEXITED(status) ? WEXITSTATUS(status) : -1,
+            WIFSIGNALED(status) ? WTERMSIG(status) : 0);
 
     if (WIFEXITED(status) && WEXITSTATUS(status) == 0) return 0;
 
