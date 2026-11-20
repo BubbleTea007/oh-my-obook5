@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <linux/input.h>
 
 struct TouchPoint {
   int x = 0;
@@ -27,12 +28,15 @@ class TouchDev {
   bool poll(TouchPoint& point, int timeout_ms = 0);
 
  private:
+  void handleEvent(const input_event& ev);
+
   int fd_ = -1;
   int screen_width_ = 800;
   int screen_height_ = 480;
   int raw_x_ = 0;
   int raw_y_ = 0;
   bool raw_down_ = false;
+  bool released_in_report_ = false;
   bool last_down_ = false;
   int last_x_ = -1;
   int last_y_ = -1;
