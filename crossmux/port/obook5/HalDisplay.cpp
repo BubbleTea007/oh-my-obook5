@@ -7,6 +7,7 @@
 #include <array>
 #include <cstring>
 #include <csignal>
+#include <unistd.h>
 
 #include "fbdev.h"
 
@@ -97,6 +98,9 @@ void HalDisplay::displayBuffer(RefreshMode /*mode*/, bool /*turnOffScreen*/,
   if (!fbReady) return;
   fb.present1bpp(frameBuffer.data(), DISPLAY_WIDTH, DISPLAY_HEIGHT, !inverted);
   fb.panDisplay();
+  // The qingyue426 driver queues the SPI update and returns; the workshop
+  // platform layer waits 90 ms before handing the panel back to the caller.
+  usleep(90000);
 }
 
 void HalDisplay::displayBufferAsync(RefreshMode mode,

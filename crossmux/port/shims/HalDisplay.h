@@ -1,0 +1,145 @@
+#pragma once
+#include <Arduino.h>
+#include <BoardConfig.h>
+#include <EInkDisplay.h>
+#include <DisplayRefreshContext.h>
+
+class HalDisplay {
+public:
+  using Controller = BoardConfig::DisplayController;
+
+  enum class GrayscaleMode : uint8_t { Overlay, Absolute, Direct };
+  enum class GrayscaleEncoding : uint8_t {
+    Unsupported,
+    OverlayMasks,
+    AbsolutePlanes,
+  };
+  enum class GrayscaleBase : uint8_t { Separate, Combined };
+
+  struct GrayscaleCapabilities {
+    GrayscaleEncoding encoding = GrayscaleEncoding::Unsupported;
+    GrayscaleBase base = GrayscaleBase::Separate;
+    bool stripUploads = false;
+    bool asyncBase = false;
+    bool stagingWhileBusy = false;
+
+    constexpr bool supported() const {
+      return encoding != GrayscaleEncoding::Unsupported;
+    }
+  };
+
+  Controller getController() const;
+  GrayscaleCapabilities grayscaleCapabilities(
+      GrayscaleMode mode = GrayscaleMode::Overlay) const;
+  const char* controllerName() const;
+
+  // Constructor with pin configuration
+  HalDisplay();
+
+  // Destructor
+  ~HalDisplay();
+
+  // Refresh modes
+  enum RefreshMode {
+    FULL_REFRESH, // Full refresh with complete waveform
+    HALF_REFRESH, // Half refresh (1720ms) - balanced quality and speed
+    FAST_REFRESH  // Fast refresh using custom LUT
+  };
+
+  // Initialize the display hardware and driver
+  void begin();
+  void begin(bool seamless);
+
+  // Display dimensions
+  static constexpr uint16_t DISPLAY_WIDTH = EInkDisplay::DISPLAY_WIDTH;
+  static constexpr uint16_t DISPLAY_HEIGHT = EInkDisplay::DISPLAY_HEIGHT;
+  static constexpr uint16_t DISPLAY_WIDTH_BYTES = DISPLAY_WIDTH / 8;
+  static constexpr uint32_t BUFFER_SIZE = DISPLAY_WIDTH_BYTES * DISPLAY_HEIGHT;
+
+  // Frame buffer operations
+  void clearScreen(uint8_t color = 0xFF) const;
+  void drawImage(const uint8_t *imageData, uint16_t x, uint16_t y, uint16_t w,
+                 uint16_t h, bool fromProgmem = false) const;
+  void drawImageTransparent(const uint8_t *imageData, uint16_t x, uint16_t y,
+                            uint16_t w, uint16_t h,
+                            bool fromProgmem = false) const;
+
+  // Persistent black/white polarity used by the X4 Pro frontlight panel.
+  void setInverted(bool inverted);
+  bool toggleInverted();
+  bool isInverted() const;
+
+  void displayBuffer(RefreshMode mode = RefreshMode::FAST_REFRESH,
+                     bool turnOffScreen = false,
+                     DisplayRefreshContext context = DisplayRefreshContext::Normal);
+  void displayBufferAsync(RefreshMode mode = RefreshMode::FAST_REFRESH,
+                          DisplayRefreshContext context = DisplayRefreshContext::Normal);
+  void waitRefreshComplete();
+  bool displayCommitted() const;
+  void cancelGrayscale();
+  bool supportsAsyncRefresh() const;
+  void displayWindow(int x, int y, int w, int h);
+  void refreshDisplay(RefreshMode mode = RefreshMode::FAST_REFRESH,
+                      bool turnOffScreen = false);
+  void setBusyWaitSliceHook(bool (*)(int8_t, uint8_t)) {}
+
+  // Power management
+  void deepSleep();
+
+  // Access to frame buffer
+  uint8_t *getFrameBuffer() const;
+  uint8_t *lendFrameBufferStorage(uint32_t *sizeOut);
+  void returnFrameBufferStorage();
+
+  // Runtime geometry passthrough
+  uint16_t getDisplayWidth() const;
+  uint16_t getDisplayHeight() const;
+  uint8_t getGrayscaleLevels() const;
+  uint8_t* beginGrayscale16();
+  bool commitGrayscale16();
+  void cancelGrayscale16();
+  uint16_t getDisplayWidthBytes() const;
+  uint32_t getBufferSize() const;
+
+  void displayGrayscaleBase(RefreshMode fallback = HALF_REFRESH,
+                            bool turnOffScreen = false,
+                            DisplayRefreshContext context = DisplayRefreshContext::Normal);
+  bool displayGrayscaleBase(GrayscaleMode mode,
+                            RefreshMode fallback = HALF_REFRESH,
+                            bool turnOffScreen = false);
+  void preconditionGrayscale();
+  void preconditionGrayscale(uint16_t x, uint16_t y, uint16_t w, uint16_t h);
+
+  void copyGrayscaleBuffers(const uint8_t *lsbBuffer, const uint8_t *msbBuffer);
+  void copyGrayscaleLsbBuffers(const uint8_t *lsbBuffer);
+  void copyGrayscaleMsbBuffers(const uint8_t *msbBuffer);
+  void cleanupGrayscaleBuffers(const uint8_t *bwBuffer);
+
+  void displayGrayBuffer(bool turnOffScreen = false,
+                         const unsigned char *lut = nullptr,
+                         bool factoryMode = false);
+
+  // Legacy targets exercise the low-memory strip path. ReadPico uses the
+  // combined full-frame AA path, matching its hardware display contract.
+  void writeGrayscalePlaneStrip(bool lsbPlane, const uint8_t *rows,
+                                uint16_t yStart, uint16_t numRows);
+  bool supportsStripGrayscale() const;
+  bool supportsAsyncGrayscaleBase() const;
+  bool combinesGrayscaleBase() const;
+  bool supportsTextOnlyCombinedBase() const;
+  bool supportsReaderTransitions() const { return false; }
+  bool supportsContinuousImageReading() const { return false; }
+  bool canUseTextTransition() const { return false; }
+
+  // Simulator only: call from main thread to push rendered pixels to SDL.
+  void presentIfNeeded();
+  // Simulator only: returns true once a hard shutdown has been requested.
+  bool shouldQuit() const;
+
+private:
+  DisplayRefreshContext refreshContext = DisplayRefreshContext::Normal;
+  EInkDisplay einkDisplay;
+  bool inverted = false;
+};
+
+extern HalDisplay display;

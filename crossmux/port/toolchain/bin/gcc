@@ -1,0 +1,4 @@
+#!/bin/sh
+# PlatformIO native platform looks for "gcc" in PATH.  Forward it to Zig's
+# bundled Clang, cross-compiling for the OBOOK5's MIPS32r2 userland.
+exec zig cc -target mipsel-linux-musleabi -mcpu=mips32r2 "$@"

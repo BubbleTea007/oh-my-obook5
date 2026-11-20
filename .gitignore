@@ -91,3 +91,6 @@ __pycache__/
 
 # CrossMux port build output
 /crossmux/port/build/
+/.pio-venv/
+/crossmux/port/pio/.pio/
+/crossmux/port/pio/src/

@@ -1,0 +1,5 @@
+#!/bin/sh
+# See gcc: PlatformIO invokes the host C++ compiler for both compilation and
+# linking, so this wrapper also makes the final link use Zig's static musl
+# runtime.
+exec zig c++ -target mipsel-linux-musleabi -mcpu=mips32r2 "$@"
