@@ -61,8 +61,10 @@ WORKSHOP = ROOT / "workshop"
 APP = WORKSHOP / "app"
 WORKSHOP_BIN = WORKSHOP / "bin" / "workshop"
 WORKSHOP_SH = WORKSHOP / "bin" / "workshop.sh"
+FONT_SETUP = WORKSHOP / "bin" / "setup-fonts.sh"
 GAME_2048_BIN = APP / "2048" / "bin" / "2048"
 DEBUG_BIN = APP / "debug" / "bin" / "debug"
+DEBUG_DAEMON = APP / "debug" / "bin" / "debugd"
 FONT_ROOT = WORKSHOP / "fonts" / "LxgwWenKai"
 FONT_DIR = FONT_ROOT / "fonts" / "TTF"
 FONT_FILES = ("LXGWWenKai-Regular.ttf", "LXGWWenKai-Medium.ttf")
@@ -146,8 +148,10 @@ if [ -f "$WORKSHOP_PKG" ]; then
     done
     chmod 755 /user/workshop/bin/workshop \
         /user/workshop/bin/workshop.sh \
+        /user/workshop/bin/setup-fonts.sh \
         /user/workshop/app/2048/bin/2048 \
-        /user/workshop/app/debug/bin/debug 2>/dev/null
+        /user/workshop/app/debug/bin/debug \
+        /user/workshop/app/debug/bin/debugd 2>/dev/null
 
     if [ -d "$SRC/qtopia" ]; then
         QTOPIASYS=/opt/image/opt/Qtopia
@@ -203,6 +207,7 @@ def require_built() -> None:
         "workshop.sh": WORKSHOP_SH,
         "2048": GAME_2048_BIN,
         "debug": DEBUG_BIN,
+        "debugd": DEBUG_DAEMON,
     }
     missing = [f"{name}: {path}" for name, path in required.items()
                if not path.is_file()]
@@ -347,6 +352,7 @@ def stage_payload() -> tuple[Path, Path]:
 
     copy_file(WORKSHOP_BIN, root / "bin" / "workshop", 0o755)
     copy_file(WORKSHOP_SH, root / "bin" / "workshop.sh", 0o755)
+    copy_file(FONT_SETUP, root / "bin" / "setup-fonts.sh", 0o755)
 
     for name in FONT_FILES:
         copy_file(FONT_DIR / name, root / "fonts" / name, 0o644)
@@ -475,6 +481,7 @@ def verify_image(payload: Path, version: str) -> None:
         required = {
             "workshop_files/bin/workshop",
             "workshop_files/bin/workshop.sh",
+            "workshop_files/bin/setup-fonts.sh",
             "workshop_files/app/2048/app.conf",
             "workshop_files/app/2048/icon.png",
             "workshop_files/app/2048/bin/2048",
@@ -483,6 +490,7 @@ def verify_image(payload: Path, version: str) -> None:
             "workshop_files/app/debug/app.conf",
             "workshop_files/app/debug/icon.png",
             "workshop_files/app/debug/bin/debug",
+            "workshop_files/app/debug/bin/debugd",
             "workshop_files/qtopia/bin/workshop",
             "workshop_files/qtopia/pics/mstar/workshop.png",
         }
