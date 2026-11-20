@@ -47,6 +47,35 @@ crossmux/
 
 当前阶段：硬件层验证骨架。
 
+## OBOOK5 实测参数
+
+通过设备 8099 shell 确认：
+
+```text
+屏幕物理分辨率   800x480
+framebuffer      800x960 virtual, 16bpp, stride 1600
+framebuffer 驱动 spi_fb
+墨水屏驱动       qingyue426_eink
+触摸             fts_ts, /dev/input/event1
+DRM              /dev/dri 不存在，无 KMSDRM
+rootfs           glibc 2.29
+内存             87MB total
+```
+
+CrossMux 选 `FREEINK_DEVICE_X4PRO`（800x480、touch、frontlight 能力），
+`GfxRenderer` 使用 Portrait 旋转；OBOOK5 专属刷新只放在平台层。
+
+## 当前版本
+
+- `port/linux/fbdev.*`：通用 Linux framebuffer 后端
+- `port/linux/evdev.*`：通用 Linux evdev 触摸
+- `port/obook5/HalDisplay.cpp`：CrossMux 显示 HAL
+- `port/obook5/HalGPIO.cpp`：CrossMux 输入 HAL
+- `port/obook5/main.cpp`：setup/loop 入口
+- 三个 HAL 文件已用 MIPS 目标编译成对象文件
+
+完整 CrossMux 链接和 UI 运行尚未接入。
+
 ## 构建
 
 硬件冒烟测试：
