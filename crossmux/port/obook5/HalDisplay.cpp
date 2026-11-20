@@ -7,6 +7,7 @@
 #include <array>
 #include <cstring>
 #include <csignal>
+#include <cstdio>
 #include <unistd.h>
 
 #include "fbdev.h"
@@ -38,7 +39,12 @@ const char* HalDisplay::controllerName() const { return "spi_fb"; }
 
 void HalDisplay::begin() {
   fbReady = fb.open("/dev/fb0");
-  if (!fbReady) return;
+  if (!fbReady) {
+    fprintf(stderr, "[obook5] /dev/fb0 open failed\n");
+    return;
+  }
+  fprintf(stderr, "[obook5] fb %dx%d %dbpp stride=%d\n", fb.info().width,
+          fb.info().height, fb.info().bpp, fb.info().stride);
   frameBuffer.fill(0xFF);
   fb.present1bpp(frameBuffer.data(), DISPLAY_WIDTH, DISPLAY_HEIGHT, true);
   fb.panDisplay();

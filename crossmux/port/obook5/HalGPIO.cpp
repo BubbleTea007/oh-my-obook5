@@ -6,6 +6,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdio>
 
 #include "evdev.h"
 
@@ -36,8 +37,13 @@ constexpr unsigned long kLongMs = 500;
 }
 
 void HalGPIO::begin() {
-  if (BoardConfig::hasTouch())
-    touch.open("/dev/input/event1", EInkDisplay::DISPLAY_WIDTH, EInkDisplay::DISPLAY_HEIGHT);
+  if (!BoardConfig::hasTouch()) {
+    fprintf(stderr, "[obook5] touch disabled by board profile\n");
+    return;
+  }
+  const bool ok = touch.open("/dev/input/event1", EInkDisplay::DISPLAY_WIDTH,
+                             EInkDisplay::DISPLAY_HEIGHT);
+  fprintf(stderr, "[obook5] touch %s\n", ok ? "ready" : "open failed");
 }
 
 void HalGPIO::beginFrame() {
@@ -60,6 +66,7 @@ void HalGPIO::update() {
   const int ny = std::clamp(p.y, 0, h - 1);
 
   if (p.down && !touchDown) {
+    fprintf(stderr, "[obook5] touch down %d,%d\n", nx, ny);
     touchDown = true;
     touchPressed = true;
     touchActivity = true;
@@ -80,6 +87,7 @@ void HalGPIO::update() {
     if (heldMs >= kLongMs && !moved && !suppressed) longPending = true;
     touchActivity = true;
   } else if (!p.down && touchDown) {
+    fprintf(stderr, "[obook5] touch up %d,%d\n", nx, ny);
     touchDown = false;
     touchReleased = true;
     touchActivity = true;

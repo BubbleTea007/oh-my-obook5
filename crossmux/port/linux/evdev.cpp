@@ -76,6 +76,10 @@ bool TouchDev::poll(TouchPoint& point, int timeout_ms) {
         raw_y_ = ev.value;
         have_abs_y_ = true;
       }
+    } else if (ev.type == EV_ABS && ev.code == ABS_MT_TRACKING_ID) {
+      // Some fts_ts firmware reports contact lifetime only through the MT
+      // tracking id; -1 lifts the finger, >= 0 starts a contact.
+      raw_down_ = ev.value >= 0;
     } else if (ev.type == EV_KEY && (ev.code == BTN_TOUCH ||
                                      ev.code == BTN_TOOL_FINGER)) {
       raw_down_ = ev.value != 0;
