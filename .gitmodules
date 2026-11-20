@@ -4,3 +4,9 @@
 [submodule "workshop/third_party/lvgl"]
 	path = workshop/third_party/lvgl
 	url = https://github.com/lvgl/lvgl.git
+[submodule "crossmux/upstream"]
+	path = crossmux/upstream
+	url = https://github.com/0x1abin/crossmux.git
+[submodule "crossmux/simulator"]
+	path = crossmux/simulator
+	url = https://github.com/0x1abin/crosspoint-simulator.git

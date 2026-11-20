@@ -88,3 +88,6 @@ __pycache__/
 /gen_atlas.py
 /firmware.md5
 /run_2048_fixed.sh
+
+# CrossMux port build output
+/crossmux/port/build/
