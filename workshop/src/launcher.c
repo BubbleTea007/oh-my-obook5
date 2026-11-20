@@ -2,6 +2,7 @@
 
 #include "icons.h"
 #include "manifest.h"
+#include "settings.h"
 #include "platform.h"
 
 #include "lvgl.h"
@@ -49,6 +50,10 @@ static lv_obj_t *s_status_battery;
 static lv_obj_t *s_status_percent_label;
 static lv_obj_t *s_status_time_label;
 static lv_timer_t *s_status_timer;
+static lv_obj_t *s_pressed_tile;
+static uint32_t s_tile_press_at;
+static int s_tile_press_shown;
+static lv_timer_t *s_tile_press_timer;
 static const char *s_status_battery_key;
 static int s_status_wifi_bars = -2;
 static int s_status_hour = -1;
@@ -422,6 +427,8 @@ static void show_return_desktop_dialog(void)
     lv_obj_add_event_cb(confirm, return_desktop_confirm_cb, LV_EVENT_CLICKED, overlay);
 }
 
+void launcher_show_return_desktop(void) { show_return_desktop_dialog(); }
+
 static void desktop_exit_cb(lv_event_t *e)
 {
     lv_obj_t *overlay = lv_event_get_user_data(e);
@@ -461,6 +468,26 @@ static void start_mock_launch(workshop_app_t *app)
     if (s_launch_timer) lv_timer_set_repeat_count(s_launch_timer, 1);
 }
 
+static void tile_press_timer_cb(lv_timer_t *timer)
+{
+    (void)timer;
+    if (!s_pressed_tile || s_tile_press_shown) return;
+
+    if (platform_ticks_ms() - s_tile_press_at >= 200U) {
+        set_tile_inverted(s_pressed_tile, 1);
+        s_tile_press_shown = 1;
+    }
+}
+
+static void tile_release_press(void)
+{
+    if (s_pressed_tile && s_tile_press_shown) {
+        set_tile_inverted(s_pressed_tile, 0);
+    }
+    s_pressed_tile = NULL;
+    s_tile_press_shown = 0;
+}
+
 static void tile_event_cb(lv_event_t *e)
 {
     lv_event_code_t code = lv_event_get_code(e);
@@ -469,15 +496,35 @@ static void tile_event_cb(lv_event_t *e)
 
     if (code == LV_EVENT_PRESSED) {
         if (s_launching) return;
-        set_tile_inverted(tile, 1);
+
+        if (s_pressed_tile && s_pressed_tile != tile &&
+            s_tile_press_shown) {
+            set_tile_inverted(s_pressed_tile, 0);
+        }
+
+        s_pressed_tile = tile;
+        s_tile_press_at = platform_ticks_ms();
+        s_tile_press_shown = 0;
+
+        if (!s_tile_press_timer) {
+            s_tile_press_timer = lv_timer_create(tile_press_timer_cb, 50,
+                                                 NULL);
+        }
     } else if (code == LV_EVENT_PRESS_LOST) {
-        if (!s_launching) set_tile_inverted(tile, 0);
+        if (!s_launching) tile_release_press();
+    } else if (code == LV_EVENT_DELETE) {
+        if (s_pressed_tile == tile) {
+            s_pressed_tile = NULL;
+            s_tile_press_shown = 0;
+        }
     } else if (code == LV_EVENT_CLICKED) {
         if (s_launching) return;
+        tile_release_press();
         s_launching = 1;
-        set_tile_inverted(tile, 1);
         if (app->special == 1) {
             show_return_desktop_dialog();
+        } else if (app->special == 2) {
+            settings_open();
         } else {
 #ifdef WORKSHOP_DEVICE
             char err[512] = {0};
@@ -616,6 +663,11 @@ static void update_status(int force)
 static void status_timer_cb(lv_timer_t *timer)
 {
     (void)timer;
+
+    /* Settings, dialogs and the keyboard overlay cover the launcher status
+     * bar. Updating it in the background would only cause an e-ink refresh. */
+    if (lv_obj_get_child_count(lv_layer_top()) > 0) return;
+
     update_status(0);
 }
 
@@ -770,7 +822,25 @@ static void build_ui(void)
 
 void launcher_init(void)
 {
-    s_app_count = manifest_load(platform_apps_dir(), s_apps, WORKSHOP_MAX_APPS);
+    const int loaded = manifest_load(platform_apps_dir(), s_apps, WORKSHOP_MAX_APPS);
+    int kept = 0;
+    for (int i = 0; i < loaded; ++i) {
+        if (strcmp(s_apps[i].id, "return_desktop") == 0 ||
+            strcmp(s_apps[i].id, "settings") == 0)
+            continue;
+        if (kept != i) s_apps[kept] = s_apps[i];
+        ++kept;
+    }
+    s_app_count = kept;
+    if (s_app_count < WORKSHOP_MAX_APPS) {
+        workshop_app_t *app = &s_apps[s_app_count];
+        memset(app, 0, sizeof(*app));
+        snprintf(app->id, sizeof(app->id), "settings");
+        snprintf(app->name, sizeof(app->name), "设置");
+        snprintf(app->dir, sizeof(app->dir), "%s/settings", platform_apps_dir());
+        app->special = 2;
+        ++s_app_count;
+    }
     s_page = 0;
 
     s_font_20 = lv_tiny_ttf_create_file(platform_font_light(), 20);
@@ -786,9 +856,10 @@ void launcher_init(void)
     if (!s_font_status) s_font_status = &lv_font_montserrat_28;
 
     style_init();
+    settings_init();
     build_ui();
     if (!s_status_timer) {
-        s_status_timer = lv_timer_create(status_timer_cb, 1000, NULL);
+        s_status_timer = lv_timer_create(status_timer_cb, 60000, NULL);
     }
 
     if (getenv("WORKSHOP_DEMO_PAGE2")) {

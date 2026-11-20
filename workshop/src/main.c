@@ -1,5 +1,6 @@
 #include "launcher.h"
 #include "platform.h"
+#include "workshop_ime.h"
 
 #include "lvgl.h"
 
@@ -7,6 +8,7 @@ int main(void)
 {
     if (platform_init() != 0) return 1;
 
+    workshop_ime_init();
     launcher_init();
 
     while (!platform_should_quit()) {

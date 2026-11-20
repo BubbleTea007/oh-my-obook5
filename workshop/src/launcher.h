@@ -4,5 +4,6 @@
 void launcher_init(void);
 void launcher_rebuild(void);
 void launcher_show_error_demo(void);
+void launcher_show_return_desktop(void);
 
 #endif

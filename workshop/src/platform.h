@@ -42,6 +42,7 @@ int platform_take_error_request(void);
 void platform_request_exit(void);
 
 void platform_set_orientation(int portrait);
+void platform_discard_touch(void);
 void platform_sleep_ms(uint32_t ms);
 uint32_t platform_ticks_ms(void);
 

@@ -22,8 +22,10 @@ LVGL_SRCS="$(find "$WORKSHOP/third_party/lvgl/src" -name '*.c' -print)"
   -DLV_LVGL_H_INCLUDE_SIMPLE \
   -DLV_CONF_PATH="\"$WORKSHOP/lv_conf.h\"" \
   -I"$WORKSHOP" \
+  -I"$WORKSHOP/lib/workshop_ime" \
   -I"$WORKSHOP/third_party/lvgl" \
   "$APP_DIR/src/debug_main.c" \
+  "$WORKSHOP/lib/workshop_ime/workshop_ime.c" \
   $LVGL_SRCS \
   -o "$OUT" \
   -lm

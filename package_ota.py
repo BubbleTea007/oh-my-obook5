@@ -70,7 +70,7 @@ FONT_DIR = FONT_ROOT / "fonts" / "TTF"
 FONT_FILES = ("LXGWWenKai-Regular.ttf", "LXGWWenKai-Medium.ttf")
 FONT_LICENSE = FONT_ROOT / "OFL.txt"
 
-APPS = ("2048", "return_desktop", "debug")
+APPS = ("2048", "debug", "settings")
 PAYLOAD_NAME = "workshop_payload.tar.gz"
 PAYLOAD_PATH = f"image/opt/Qtopia/share/upgrade/{PAYLOAD_NAME}"
 
@@ -143,7 +143,7 @@ if [ -f "$WORKSHOP_PKG" ]; then
         cp -af "$SRC/$d/." "/user/workshop/$d/"
     done
 
-    for app in 2048 debug return_desktop; do
+    for app in 2048 debug settings; do
         mkdir -p "/user/workshop/app/$app/data" "/user/workshop/app/$app/logs"
     done
     chmod 755 /user/workshop/bin/workshop \
@@ -485,8 +485,8 @@ def verify_image(payload: Path, version: str) -> None:
             "workshop_files/app/2048/app.conf",
             "workshop_files/app/2048/icon.png",
             "workshop_files/app/2048/bin/2048",
-            "workshop_files/app/return_desktop/app.conf",
-            "workshop_files/app/return_desktop/icon.png",
+            "workshop_files/app/settings/app.conf",
+            "workshop_files/app/settings/icon.png",
             "workshop_files/app/debug/app.conf",
             "workshop_files/app/debug/icon.png",
             "workshop_files/app/debug/bin/debug",

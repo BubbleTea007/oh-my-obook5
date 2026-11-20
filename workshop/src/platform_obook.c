@@ -28,6 +28,7 @@
 #define PHYS_W 800
 #define PHYS_H 480
 #define EINK_WAIT_US 90000
+#define MIN_FLUSH_INTERVAL_MS 200
 
 /* OBOOK5 battery: SADC aux1, divided by 3 on the board. */
 #define BATTERY_ADC_PATH "/dev/jz_adc_aux_1"
@@ -60,6 +61,24 @@ static uint32_t s_ignore_touch_until;
 static int s_raw_x;
 static int s_raw_y;
 
+static uint64_t timespec_diff_us(const struct timespec *start,
+                                 const struct timespec *end)
+{
+    int64_t sec = (int64_t)end->tv_sec - (int64_t)start->tv_sec;
+    int64_t nsec = (int64_t)end->tv_nsec - (int64_t)start->tv_nsec;
+    if (nsec < 0) {
+        sec--;
+        nsec += 1000000000LL;
+    }
+    return (uint64_t)sec * 1000000ULL + (uint64_t)nsec / 1000ULL;
+}
+
+static uint32_t s_flush_seq;
+static uint32_t s_flush_count;
+static uint32_t s_last_flush_end_ms;
+static uint64_t s_flush_total_us;
+static uint32_t s_flush_max_us;
+
 static int s_battery_percent = -1;
 static int s_battery_charging;
 static int s_battery_valid;
@@ -73,7 +92,17 @@ static uint32_t s_wifi_read_ms;
 
 static void flush_cb(lv_display_t *disp, const lv_area_t *area, uint8_t *px_map)
 {
-    (void)area;
+    struct timespec started;
+    clock_gettime(CLOCK_MONOTONIC, &started);
+
+    const uint32_t now = platform_ticks_ms();
+    if (s_last_flush_end_ms != 0) {
+        const uint32_t elapsed = now - s_last_flush_end_ms;
+        if (elapsed < MIN_FLUSH_INTERVAL_MS) {
+            usleep((MIN_FLUSH_INTERVAL_MS - elapsed) * 1000U);
+        }
+    }
+
     const int lw = lv_display_get_horizontal_resolution(disp);
     const int lh = lv_display_get_vertical_resolution(disp);
 
@@ -92,6 +121,28 @@ static void flush_cb(lv_display_t *disp, const lv_area_t *area, uint8_t *px_map)
         memcpy(s_phys_buf, px_map, (size_t)lw * lh * 2);
     }
 
+    int identical = 1;
+    if (s_finfo.line_length == PHYS_W * 2) {
+        identical = memcmp(s_fb_mem, s_phys_buf,
+                           (size_t)PHYS_W * PHYS_H * 2) == 0;
+    } else {
+        for (int y = 0; y < PHYS_H; y++) {
+            if (memcmp(s_fb_mem + (size_t)y * s_finfo.line_length,
+                       s_phys_buf + (size_t)y * PHYS_W * 2,
+                       PHYS_W * 2) != 0) {
+                identical = 0;
+                break;
+            }
+        }
+    }
+
+    if (identical) {
+        s_flush_seq++;
+        fprintf(stderr, "flush #%u skipped (no pixel change)\n", s_flush_seq);
+        lv_display_flush_ready(disp);
+        return;
+    }
+
     if (s_finfo.line_length == PHYS_W * 2) {
         memcpy(s_fb_mem, s_phys_buf, (size_t)PHYS_W * PHYS_H * 2);
     } else {
@@ -107,8 +158,34 @@ static void flush_cb(lv_display_t *disp, const lv_area_t *area, uint8_t *px_map)
     v.yoffset = 0;
     v.activate = FB_ACTIVATE_NOW;
 
+    struct timespec ioctl_started;
+    clock_gettime(CLOCK_MONOTONIC, &ioctl_started);
     ioctl(s_fb_fd, FBIOPAN_DISPLAY, &v);
+    struct timespec ioctl_done;
+    clock_gettime(CLOCK_MONOTONIC, &ioctl_done);
+
     usleep(EINK_WAIT_US);
+
+    struct timespec finished;
+    clock_gettime(CLOCK_MONOTONIC, &finished);
+
+    const uint64_t ioctl_us = timespec_diff_us(&ioctl_started, &ioctl_done);
+    const uint64_t total_us = timespec_diff_us(&started, &finished);
+
+    s_flush_seq++;
+    s_flush_count++;
+    s_flush_total_us += total_us;
+    if (total_us > s_flush_max_us) s_flush_max_us = (uint32_t)total_us;
+    s_last_flush_end_ms = platform_ticks_ms();
+
+    fprintf(stderr,
+            "flush #%u area=%d,%d %dx%d ioctl=%lluus total=%lluus avg=%lluus max=%uus\n",
+            s_flush_seq, area ? area->x1 : 0, area ? area->y1 : 0,
+            area ? lv_area_get_width(area) : lw,
+            area ? lv_area_get_height(area) : lh,
+            (unsigned long long)ioctl_us, (unsigned long long)total_us,
+            (unsigned long long)(s_flush_total_us / s_flush_count),
+            s_flush_max_us);
 
     lv_display_flush_ready(disp);
 }
@@ -496,6 +573,18 @@ void platform_set_orientation(int portrait)
                                                  : LV_DISPLAY_ROTATION_0);
         lv_obj_invalidate(lv_screen_active());
     }
+}
+
+void platform_discard_touch(void)
+{
+    if (s_touch_fd >= 0) {
+        struct input_event ev;
+        while (read(s_touch_fd, &ev, sizeof(ev)) == (ssize_t)sizeof(ev)) {
+        }
+    }
+    s_touch_down = 0;
+    s_last_touch_down = 0;
+    s_ignore_touch_until = platform_ticks_ms() + 300;
 }
 
 void platform_sleep_ms(uint32_t ms)

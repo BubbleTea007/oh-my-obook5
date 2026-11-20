@@ -13,6 +13,8 @@ $ROOT/src/main.c \
 $ROOT/src/launcher.c \
 $ROOT/src/manifest.c \
 $ROOT/src/icons.c \
+$ROOT/src/settings.c \
+$ROOT/lib/workshop_ime/workshop_ime.c \
 $ROOT/src/platform_obook.c"
 
 # shellcheck disable=SC2086
@@ -28,6 +30,7 @@ $ROOT/src/platform_obook.c"
   -DLV_CONF_PATH="\"$ROOT/lv_conf.h\"" \
   -I"$ROOT" \
   -I"$ROOT/src" \
+  -I"$ROOT/lib/workshop_ime" \
   -I"$ROOT/third_party/lvgl" \
   $LVGL_SRCS \
   $APP_SRCS \

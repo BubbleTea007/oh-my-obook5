@@ -330,6 +330,11 @@ void platform_set_orientation(int portrait)
     lv_obj_invalidate(lv_screen_active());
 }
 
+void platform_discard_touch(void)
+{
+    s_mouse_pressed = 0;
+}
+
 void platform_sleep_ms(uint32_t ms)
 {
     SDL_Delay(ms);

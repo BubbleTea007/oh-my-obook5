@@ -1,4 +1,5 @@
 #include "lvgl.h"
+#include "workshop_ime.h"
 
 #include <arpa/inet.h>
 #include <errno.h>
@@ -834,6 +835,7 @@ int main(void)
 {
     if (platform_init() != 0) return 1;
 
+    workshop_ime_init();
     ui_create();
     if (server_start() != 0) {
         fprintf(stderr, "cannot listen on ports %d/%d: %s\n",

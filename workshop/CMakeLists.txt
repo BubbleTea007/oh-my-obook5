@@ -21,11 +21,14 @@ add_executable(workshop_sim
     src/launcher.c
     src/manifest.c
     src/icons.c
+    src/settings.c
+    lib/workshop_ime/workshop_ime.c
     src/platform_sim.c
 )
 
 target_include_directories(workshop_sim PRIVATE
     src
+    lib/workshop_ime
     ${SDL2_INCLUDE_DIRS}
 )
 
