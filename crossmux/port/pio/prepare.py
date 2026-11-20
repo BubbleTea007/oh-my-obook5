@@ -39,6 +39,9 @@ SIMULATOR_EXCLUDES = {
     "HalDisplay.cpp",
     "HalGPIO.cpp",
     "simulator_main.cpp",
+    # The simulator's qrcode.cpp is a blank stub.  Device builds use the real
+    # ricmoo/QRCode library pulled in by PlatformIO.
+    "qrcode.cpp",
 }
 
 OVERLAY_SOURCES = {
@@ -93,6 +96,37 @@ def link_headers(root: Path, target_root: Path) -> int:
     return count
 
 
+
+def patch_wifi_selection_header() -> None:
+    """Show the system's current SSID/IP in the WiFi chooser subtitle.
+
+    Upstream's screen assumes the ESP32 app owns the radio and only knows what
+    it connected itself.  OBOOK5 shares wlan0 with Qtopia, so seed the header
+    from the live wpa_supplicant state.  Patch the generated staging copy; the
+    upstream submodule stays untouched.
+    """
+    path = SRC / "upstream" / "activities" / "network" / "WifiSelectionActivity.cpp"
+    if not path.is_symlink():
+        return
+    source = path.resolve()
+    text = source.read_text(encoding="utf-8")
+    marker = "  cachedMacAddress = std::string(macStr);"
+    if marker not in text:
+        print("warning: WifiSelectionActivity header marker not found", file=sys.stderr)
+        return
+    addition = marker + """
+  if (WiFi.status() == WL_CONNECTED) {
+    char current[192];
+    snprintf(current, sizeof(current), "%s | %s %s",
+             cachedMacAddress.c_str(), WiFi.SSID().c_str(),
+             WiFi.localIP().toString().c_str());
+    cachedMacAddress = current;
+  }"""
+    text = text.replace(marker, addition, 1)
+    path.unlink()
+    path.write_text(text, encoding="utf-8")
+    print("patched WifiSelectionActivity header with live SSID/IP")
+
 def main() -> int:
     if not (UPSTREAM / "src").is_dir():
         print("upstream submodule is missing; run git submodule update --init", file=sys.stderr)
@@ -126,6 +160,8 @@ def main() -> int:
     # -Isrc ahead of libdeps.
     for path in sorted(SHIMS.iterdir()):
         if path.is_file() and path.suffix == ".h":
+            if path.name == "qrcode.h":
+                continue
             link_file(path, SRC / path.name)
             count += 1
         elif path.is_dir() and any(path.glob("*.h")):
@@ -139,6 +175,8 @@ def main() -> int:
     for name in ("fbdev.cpp", "evdev.cpp"):
         link_file(PORT / "linux" / name, SRC / "linux" / name)
         count += 1
+
+    patch_wifi_selection_header()
 
     # ReleaseJsonParser has no library.json, so PlatformIO's LDF does not pull
     # it in from lib/ when only its header is referenced by the simulator OTA
