@@ -21,3 +21,16 @@
 
 `smoke_test` 会直接占用 `/dev/fb0` 和 `/dev/input/event1`，只能在 Qtopia/workshop
 停止或专用测试环境中运行，不要在日常使用界面打开时直接启动。
+
+## HAL overlay 编译检查
+
+`build_objects.sh` 只编译 `HalDisplay`、`HalGPIO` 和 `main` 三个适配文件，
+用来检查接口和头文件是否匹配，不链接完整 CrossMux：
+
+```bash
+cd crossmux/port
+./build_objects.sh
+```
+
+完整 CrossMux native target 还需要接入 simulator 的 shim 库和 PlatformIO/CMake
+构建图。
