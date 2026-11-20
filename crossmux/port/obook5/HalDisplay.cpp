@@ -15,8 +15,31 @@
 namespace {
 FbDev fb;
 std::array<uint8_t, HalDisplay::BUFFER_SIZE> frameBuffer{};
+std::array<uint8_t, HalDisplay::BUFFER_SIZE> rotatedBuffer{};
 bool inverted = false;
 bool fbReady = false;
+
+constexpr uint8_t reverseBits(uint8_t value) {
+  value = static_cast<uint8_t>((value & 0xF0u) >> 4 | (value & 0x0Fu) << 4);
+  value = static_cast<uint8_t>((value & 0xCCu) >> 2 | (value & 0x33u) << 2);
+  value = static_cast<uint8_t>((value & 0xAAu) >> 1 | (value & 0x55u) << 1);
+  return value;
+}
+
+// The OBOOK5 panel is mounted 180 degrees relative to the X4 Pro profile
+// CrossMux targets.  Rotate the packed 1-bit frame in the HAL so CrossMux can
+// keep its normal Portrait orientation and layout math.
+const uint8_t* panelFrame() {
+  constexpr int kWidthBytes = HalDisplay::DISPLAY_WIDTH_BYTES;
+  constexpr int kHeight = HalDisplay::DISPLAY_HEIGHT;
+  for (int y = 0; y < kHeight; ++y) {
+    const uint8_t* src = frameBuffer.data() + (kHeight - 1 - y) * kWidthBytes;
+    uint8_t* dst = rotatedBuffer.data() + y * kWidthBytes;
+    for (int x = 0; x < kWidthBytes; ++x)
+      dst[x] = reverseBits(src[kWidthBytes - 1 - x]);
+  }
+  return rotatedBuffer.data();
+}
 }
 
 volatile sig_atomic_t obook5_quit_requested = 0;
@@ -102,7 +125,7 @@ bool HalDisplay::isInverted() const { return inverted; }
 void HalDisplay::displayBuffer(RefreshMode /*mode*/, bool /*turnOffScreen*/,
                                DisplayRefreshContext /*context*/) {
   if (!fbReady) return;
-  fb.present1bpp(frameBuffer.data(), DISPLAY_WIDTH, DISPLAY_HEIGHT, !inverted);
+  fb.present1bpp(panelFrame(), DISPLAY_WIDTH, DISPLAY_HEIGHT, !inverted);
   fb.panDisplay();
   // The qingyue426 driver queues the SPI update and returns; the workshop
   // platform layer waits 90 ms before handing the panel back to the caller.

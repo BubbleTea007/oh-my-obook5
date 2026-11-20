@@ -5,6 +5,8 @@
 
 #include <GfxRenderer.h>
 
+#include "CrossPointSettings.h"
+
 #include "HalDisplay.h"
 #include "HalGPIO.h"
 #include "SimulatorLifecycle.h"
@@ -28,17 +30,21 @@ int main(int argc, char** argv) {
   setenv("CROSSPOINT_SIM_SD", "/user", 0);
   SimulatorLifecycle::initProcessArgs(argv);
 
-  // The OBOOK5 panel is mounted 180 degrees relative to the X4 Pro profile
-  // CrossMux uses.  Its Portrait mapping is a 90-degree clockwise rotation;
-  // PortraitInverted is the counter-clockwise mapping the workshop platform
-  // already uses (X = 799 - y, Y = x) and keeps touch in sync.
-  renderer.setOrientation(GfxRenderer::PortraitInverted);
+  // Keep CrossMux in its normal Portrait layout.  OBOOK5's 180-degree panel
+  // mounting is handled by HalDisplay/HalGPIO, so the reader's saved
+  // orientation setting keeps working too.
+  renderer.setOrientation(GfxRenderer::Portrait);
 
   std::signal(SIGINT, request_quit);
   std::signal(SIGTERM, request_quit);
   std::signal(SIGPIPE, SIG_IGN);
 
   setup();
+
+  // The OBOOK5 panel rotation is handled entirely by the HAL.  Keep the reader
+  // on the native Portrait layout regardless of any previously saved value.
+  SETTINGS.orientation = CrossPointSettings::ORIENTATION::PORTRAIT;
+
   while (!display.shouldQuit()) {
     gpio.beginFrame();
     loop();

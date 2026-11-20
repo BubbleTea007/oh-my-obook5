@@ -70,8 +70,11 @@ void HalGPIO::update() {
   // to a second, so a full press/move/release sequence may already be waiting
   // in the kernel buffer.
   while (touch.poll(p, 0)) {
-    const int nx = std::clamp(p.x, 0, w - 1);
-    const int ny = std::clamp(p.y, 0, h - 1);
+    // The panel is mounted 180 degrees from the X4 Pro profile; rotate the
+    // touch contact into CrossMux's panel coordinate system before its
+    // Portrait tapToLogical() mapping runs.
+    const int nx = w - 1 - std::clamp(p.x, 0, w - 1);
+    const int ny = h - 1 - std::clamp(p.y, 0, h - 1);
 
     if (p.down && !touchDown) {
       fprintf(stderr, "[obook5] touch down %d,%d\n", nx, ny);
